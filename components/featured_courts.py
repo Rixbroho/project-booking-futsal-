@@ -1,4 +1,4 @@
-tkinter as tk
+import tkinter as tk
 
 class FeaturedCourts:
     def __init__(self, parent, colors, on_book):
