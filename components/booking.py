@@ -144,7 +144,7 @@ class BookingDialog:
         btn_container.pack(expand=True)
 
         # Extra large Confirm button
-        confirm_btn = tk.Button(btn_container, text="CONFIRM BOOKING",
+        confirm_btn = tk.Button(btn_container, text="CONFIRM BOOKING???",
                               bg=self.colors['red'],
                               fg=self.colors['text'],
                               font=('Arial', 20, 'bold'),
