@@ -5,17 +5,18 @@ from datetime import date
 
 class BookingDialog:
     def __init__(self, parent, colors, location_var, game_var, on_confirm):
+        # using self to allow the class to store and access its own variables and methods and to keep a track of its own data and functions.
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Book a Court")
         self.dialog.geometry("700x700")
         self.dialog.configure(bg=colors['bg_dark'])
-        self.colors = colors
+        self.colors = colors 
         self.location_var = location_var
         self.game_var = game_var
         self.on_confirm = on_confirm
 
-        self.dialog.transient(parent)
-        self.dialog.grab_set()
+        self.dialog.transient(parent) #it makes sure that it belongs to parent window
+        self.dialog.grab_set() #This makes sure the user can't click anywhere else until they close the pop-up and The user must interact with the pop-up before they can go back to the main window.
         
         self.create_dialog_content()
 
