@@ -1,8 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from utils.styles import Styles
-from components.booking_dialog import BookingDialog
-from components.view_bookings import ViewBookingsDialog
+from components.booking import BookingDialog
+from components.view_booking import ViewBookingsDialog
 from components.featured_courts import FeaturedCourts
 
 class FutsalBookingApp:
