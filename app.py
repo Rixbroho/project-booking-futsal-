@@ -1,15 +1,23 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from utils.styles import Styles
-from components.booking import BookingDialog
-from components.view_booking import ViewBookingsDialog
+from components.booking_dialog import BookingDialog
+from components.view_bookings import ViewBookingsDialog
 from components.featured_courts import FeaturedCourts
+from utils.database import Database
+from components.login import LoginWindow, RegisterWindow
 
 class FutsalBookingApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Futsal Range Booking")
         self.root.state('zoomed')
+        
+        # Initialize database
+        self.db = Database()
+        
+        # User session
+        self.current_user = None
         
         # Get colors from styles
         self.colors = Styles.COLORS
@@ -28,16 +36,15 @@ class FutsalBookingApp:
         
         self.games = ["Futsal", "Cricket", "Basketball"]
         
-        # Store bookings
-        self.bookings = {}
-        
         # Create main scrollable canvas
         self.create_scrollable_canvas()
-        self.create_widgets()
         
         # Configure style for larger buttons
         self.style = ttk.Style()
         self.style.configure('Large.TButton', padding=15, font=('Arial', 12, 'bold'))
+        
+        # Show login window last
+        self.show_login()
 
     def create_scrollable_canvas(self):
         # Create canvas and scrollbar
@@ -83,6 +90,10 @@ class FutsalBookingApp:
         self.canvas.itemconfig(self.canvas_frame, width=event.width)
 
     def create_widgets(self):
+        # Clear existing widgets
+        for widget in self.main_frame.winfo_children():
+            widget.destroy()
+            
         self.create_header()
         self.create_hero_section()
         self.create_booking_form()
@@ -100,6 +111,15 @@ class FutsalBookingApp:
         # Navigation buttons
         nav_frame = tk.Frame(header_frame, bg=self.colors['bg_dark'])
         nav_frame.pack(side='right')
+
+        # Add logout button
+        logout_btn = tk.Button(nav_frame, text="Logout", 
+                            bg=self.colors['red'],
+                            fg=self.colors['text'],
+                            font=('Arial', 12, 'bold'),
+                            bd=0, padx=20, pady=8,
+                            command=self.logout)
+        logout_btn.pack(side='right', padx=10)
 
         # Larger View Bookings button
         view_bookings_btn = tk.Button(nav_frame, text="View All Bookings", 
@@ -210,7 +230,42 @@ class FutsalBookingApp:
         book_btn.bind('<Enter>', lambda e: book_btn.configure(bg=self.colors['hover_red']))
         book_btn.bind('<Leave>', lambda e: book_btn.configure(bg=self.colors['red']))
 
+    def show_login(self):
+        # Hide the canvas and scrollbar if they exist
+        if hasattr(self, 'canvas'):
+            self.canvas.pack_forget()
+        if hasattr(self, 'scrollbar'):
+            self.scrollbar.pack_forget()
+        
+        # Show login window
+        LoginWindow(self.root, self.colors, self.handle_login, self.handle_register)
+
+    def handle_login(self, username, password):
+        user = self.db.verify_user(username, password)
+        if user:
+            self.current_user = user
+            # Show the canvas and scrollbar again
+            self.scrollbar.pack(side="right", fill="y")
+            self.canvas.pack(side="left", fill="both", expand=True)
+            self.create_widgets()
+            messagebox.showinfo("Success", f"Welcome back, {user['full_name']}!")
+        else:
+            messagebox.showerror("Error", "Invalid username or password")
+            self.show_login()
+
+    def handle_register(self, username, password, fullname, email):
+        if self.db.register_user(username, password, fullname, email):
+            messagebox.showinfo("Success", "Registration successful! Please login.")
+            self.show_login()
+        else:
+            messagebox.showerror("Error", "Username or email already exists")
+            self.show_login()
+
     def show_booking_dialog(self):
+        if not self.current_user:
+            messagebox.showerror("Error", "Please login first")
+            return
+
         # Temporarily unbind mousewheel from main window
         self.unbind_mousewheel()
         
@@ -224,11 +279,18 @@ class FutsalBookingApp:
         dialog.dialog.bind("<Destroy>", on_dialog_close)
 
     def view_all_bookings(self):
+        if not self.current_user:
+            messagebox.showerror("Error", "Please login first")
+            return
+
         # Temporarily unbind mousewheel from main window
         self.unbind_mousewheel()
         
+        # Get bookings from database
+        bookings = self.db.get_bookings(self.current_user['id'])
+        
         # Create and show dialog
-        dialog = ViewBookingsDialog(self.root, self.colors, self.bookings, self.cancel_booking)
+        dialog = ViewBookingsDialog(self.root, self.colors, bookings, self.cancel_booking)
         
         # Rebind mousewheel when dialog closes
         def on_dialog_close(event=None):
@@ -237,33 +299,34 @@ class FutsalBookingApp:
         dialog.window.bind("<Destroy>", on_dialog_close)
 
     def confirm_booking(self, selected_date, time, customer_name, location, game):
-        if selected_date not in self.bookings:
-            self.bookings[selected_date] = {}
-
-        if time in self.bookings[selected_date]:
-            messagebox.showerror("Error", "This time slot is already booked")
+        if not self.current_user:
+            messagebox.showerror("Error", "Please login first")
             return False
 
-        self.bookings[selected_date][time] = {
-            'customer_name': customer_name,
-            'location': location,
-            'game': game
-        }
-
-        messagebox.showinfo("Success", 
+        if self.db.add_booking(self.current_user['id'], selected_date, time, location, game, customer_name):
+            messagebox.showinfo("Success", 
                           f"Booking confirmed!\n\nDate: {selected_date}\n"
                           f"Time: {time}\nLocation: {location}\n"
                           f"Game: {game}\nCustomer: {customer_name}")
-        
-        # Make sure scrolling is re-enabled
-        self.bind_mousewheel()
-        return True
+            return True
+        else:
+            messagebox.showerror("Error", "This time slot is already booked")
+            return False
 
     def cancel_booking(self, date, time):
-        if date in self.bookings and time in self.bookings[date]:
-            del self.bookings[date][time]
-            if not self.bookings[date]:  # If no more bookings for this date
-                del self.bookings[date]
+        if not self.current_user:
+            messagebox.showerror("Error", "Please login first")
+            return False
+
+        if self.db.cancel_booking(date, time):
             messagebox.showinfo("Success", "Booking cancelled successfully")
             return True
         return False
+
+    def logout(self):
+        self.current_user = None
+        # Clear the main frame
+        for widget in self.main_frame.winfo_children():
+            widget.destroy()
+        # Show login window
+        self.show_login()
